@@ -1,0 +1,5 @@
+data_simulado,simulado,materia,assunto,qtd_questoes,qtd_acertos,erro_nao_sabia,erro_interpretacao,erro_nao_estudei,erro_desatencao,tempo_min
+2024-01-10,Simulado 01,Direito Constitucional,Direitos Fundamentais,10,7,1,1,1,0,30
+2024-01-10,Simulado 01,Português,Crase,15,10,0,2,3,0,45
+2024-01-17,Simulado 02,Direito Administrativo,Atos Administrativos,10,5,3,1,1,0,25
+2024-01-17,Simulado 02,Raciocínio Lógico,Proposições,10,9,0,1,0,0,40

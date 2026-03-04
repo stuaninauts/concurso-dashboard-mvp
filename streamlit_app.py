@@ -13,144 +13,177 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Sidebar ---
+# --- Sidebar: Configuração e Carga ---
 with st.sidebar:
     st.header("📂 Fonte de Dados")
     uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
-    sheet_url = st.text_input("Link do Google Sheets", placeholder="https://docs.google.com/...")
-    
+    sheet_url = st.text_input("Link Sheets", placeholder="https://docs.google.com/...")
     st.divider()
 
-with st.spinner("Carregando dados..."):
+# Carga de Dados
+with st.spinner("Carregando..."):
     df_raw = load_data(sheet_url=sheet_url, uploaded_file=uploaded_file)
 
 if df_raw.empty:
     st.warning("👈 Carregue os dados para começar.")
     st.stop()
 
-# --- Filtros ---
+# Garantir data
+if 'data' in df_raw.columns:
+    df_raw['data'] = pd.to_datetime(df_raw['data'])
+
+# --- Sidebar: Filtros ---
 with st.sidebar:
     st.header("🔍 Filtros")
-    df_raw['data'] = pd.to_datetime(df_raw['data'])
     
+    # 1. Data
     min_date = df_raw['data'].min()
     max_date = df_raw['data'].max()
-    
-    data_inicial, data_final = st.date_input("Período", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+    d_inicial, d_final = st.date_input("Período", (min_date, max_date), min_value=min_date, max_value=max_date)
 
-    opcoes_banca = df_raw['concurso'].unique().tolist() if 'concurso' in df_raw.columns else []
-    filtro_banca = st.multiselect("Banca", options=opcoes_banca, default=opcoes_banca)
+    # 2. Categóricos
+    bancas = df_raw['concurso'].unique().tolist() if 'concurso' in df_raw.columns else []
+    sel_banca = st.multiselect("Banca", bancas, default=bancas)
     
-    opcoes_materia = df_raw['materia'].unique().tolist() if 'materia' in df_raw.columns else []
-    filtro_materia = st.multiselect("Matéria", options=opcoes_materia, default=opcoes_materia)
+    materias = df_raw['materia'].unique().tolist() if 'materia' in df_raw.columns else []
+    sel_materia = st.multiselect("Matéria", materias, default=materias)
 
-# Aplicação Filtros
+    st.divider()
+    
+    # 3. Filtro de Tipo de Erro (Novo)
+    st.markdown("**Filtrar Visualização de Erros**")
+    tipos_erro_disponiveis = ['erro_nao_estudei', 'erro_nao_sabia', 'erro_interpretacao', 'erro_desatencao']
+    sel_tipos_erro = st.multiselect("Exibir Apenas Erros de:", options=tipos_erro_disponiveis, default=tipos_erro_disponiveis, format_func=lambda x: x.replace('erro_', '').replace('_', ' ').title())
+
+# --- Filtragem do DataFrame ---
 df = df_raw.copy()
-df = df[(df['data'].dt.date >= data_inicial) & (df['data'].dt.date <= data_final)]
-if filtro_banca: df = df[df['concurso'].isin(filtro_banca)]
-if filtro_materia: df = df[df['materia'].isin(filtro_materia)]
+df = df[(df['data'].dt.date >= d_inicial) & (df['data'].dt.date <= d_final)]
+if sel_banca: df = df[df['concurso'].isin(sel_banca)]
+if sel_materia: df = df[df['materia'].isin(sel_materia)]
 
-# --- KPIs ---
-st.title("📊 Monitoramento de Desempenho")
+if df.empty:
+    st.warning("Sem dados para os filtros selecionados.")
+    st.stop()
 
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+# --- Cálculos de Métricas ---
 total_questoes = df['questoes'].sum()
 total_acertos = df['acertos'].sum()
-taxa_geral = (total_acertos / total_questoes * 100) if total_questoes > 0 else 0
+total_nao_estudei = df['erro_nao_estudei'].sum()
 
-kpi1.metric("Questões", int(total_questoes))
-kpi2.metric("Acertos", int(total_acertos))
-kpi3.metric("Taxa Geral", f"{taxa_geral:.1f}%")
-kpi4.metric("Registros", len(df))
+# Taxa Bruta (considera tudo)
+taxa_bruta = (total_acertos / total_questoes * 100) if total_questoes > 0 else 0
+
+# Taxa Líquida / Real (desconsidera questões que não estudou)
+questoes_validas = total_questoes - total_nao_estudei
+taxa_real = (total_acertos / questoes_validas * 100) if questoes_validas > 0 else 0
+
+# --- Dashboard: KPIs ---
+st.title("📊 Monitoramento de Desempenho")
+
+k1, k2, k3, k4, k5 = st.columns(5)
+k1.metric("Questões Totais", int(total_questoes))
+k2.metric("Acertos", int(total_acertos))
+k3.metric("Taxa Bruta", f"{taxa_bruta:.1f}%", help="Acertos / Todas as Questões")
+k4.metric("Taxa Real (Líquida)", f"{taxa_real:.1f}%", delta=f"{taxa_real-taxa_bruta:.1f}%", help="Acertos / (Todas - Não Estudei). Mostra seu desempenho no que você JÁ estudou.")
+k5.metric("Questões 'Não Estudei'", int(total_nao_estudei))
 
 st.divider()
 
-if df.empty:
-    st.warning("Sem dados para os filtros atuais.")
-    st.stop()
-
-# --- Abas de Análise ---
-tab1, tab2, tab3 = st.tabs(["📈 Evolução", "⚠️ Tipos de Erro", "🚨 Top Assuntos Errados"])
+# --- Abas ---
+tab1, tab2, tab3 = st.tabs(["📈 Evolução & Matérias", "⚠️ Análise de Erros", "🚨 Assuntos Críticos"])
 
 # TAB 1: Evolução
 with tab1:
-    col_a, col_b = st.columns([2, 1])
-    with col_a:
-        df_tempo = df.groupby('data')[['questoes', 'acertos']].sum().reset_index()
-        df_tempo['Taxa'] = (df_tempo['acertos'] / df_tempo['questoes'] * 100)
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        st.subheader("Evolução Temporal")
+        # Agrupamento diário
+        df_tempo = df.groupby('data')[['questoes', 'acertos', 'erro_nao_estudei']].sum().reset_index()
         
-        fig = px.line(df_tempo, x='data', y='Taxa', markers=True, title="Evolução da Taxa de Acerto (%)")
-        fig.update_yaxes(range=[0, 110])
+        # Calculando as duas taxas na linha do tempo
+        df_tempo['Bruta'] = (df_tempo['acertos'] / df_tempo['questoes'] * 100)
+        df_tempo['Real'] = df_tempo.apply(lambda x: (x['acertos'] / (x['questoes'] - x['erro_nao_estudei']) * 100) if (x['questoes'] - x['erro_nao_estudei']) > 0 else 0, axis=1)
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df_tempo['data'], y=df_tempo['Bruta'], name='Taxa Bruta', line=dict(dash='dot', color='gray')))
+        fig.add_trace(go.Scatter(x=df_tempo['data'], y=df_tempo['Real'], name='Taxa Real (Sabe)', line=dict(color='blue', width=3)))
+        fig.update_layout(title="Comparativo: Taxa Bruta vs Real", yaxis_range=[0, 110], hovermode="x unified")
         st.plotly_chart(fig, use_container_width=True)
-    
-    with col_b:
-        df_mat = df.groupby('materia')[['questoes', 'acertos']].sum().reset_index()
-        df_mat['Taxa'] = (df_mat['acertos'] / df_mat['questoes'] * 100)
-        df_mat = df_mat.sort_values('Taxa')
-        
-        fig_bar = px.bar(df_mat, x='Taxa', y='materia', orientation='h', title="Ranking por Matéria", color='Taxa', color_continuous_scale='RdYlGn')
+
+    with c2:
+        st.subheader("Ranking por Matéria (Taxa Real)")
+        df_mat = df.groupby('materia')[['questoes', 'acertos', 'erro_nao_estudei']].sum().reset_index()
+        # Calcula Taxa Real por matéria
+        df_mat['Taxa Real'] = df_mat.apply(lambda x: (x['acertos'] / (x['questoes'] - x['erro_nao_estudei']) * 100) if (x['questoes'] - x['erro_nao_estudei']) > 0 else 0, axis=1)
+        df_mat = df_mat.sort_values('Taxa Real')
+
+        fig_bar = px.bar(df_mat, x='Taxa Real', y='materia', orientation='h', text_auto='.1f', color='Taxa Real', color_continuous_scale='RdYlGn')
+        fig_bar.update_layout(xaxis_range=[0, 100])
         st.plotly_chart(fig_bar, use_container_width=True)
 
-# TAB 2: Tipos de Erro
+# TAB 2: Erros
 with tab2:
-    cols_erro = ['erro_nao_estudei', 'erro_nao_sabia', 'erro_interpretacao', 'erro_desatencao']
-    if set(cols_erro).issubset(df.columns):
-        erros_totais = df[cols_erro].sum().reset_index()
-        erros_totais.columns = ['Tipo', 'Qtd']
+    st.subheader("Distribuição dos Tipos de Erro")
+    
+    # Filtra colunas baseado na seleção da sidebar
+    if not sel_tipos_erro:
+        st.warning("Selecione pelo menos um tipo de erro na barra lateral.")
+    else:
+        # Soma total dos erros selecionados
+        erros_filtrados = df[sel_tipos_erro].sum().reset_index()
+        erros_filtrados.columns = ['Tipo', 'Qtd']
         
-        c1, c2 = st.columns(2)
-        c1.plotly_chart(px.pie(erros_totais, values='Qtd', names='Tipo', hole=0.4, title="Distribuição de Erros"), use_container_width=True)
+        col_pie, col_heat = st.columns([1, 2])
         
-        heatmap_data = df.groupby('materia')[cols_erro].sum()
-        c2.plotly_chart(px.imshow(heatmap_data, text_auto=True, color_continuous_scale='Reds', title="Erros por Matéria"), use_container_width=True)
+        with col_pie:
+            if erros_filtrados['Qtd'].sum() > 0:
+                # Limpa nomes para o gráfico
+                erros_filtrados['Label'] = erros_filtrados['Tipo'].str.replace('erro_', '').str.replace('_', ' ').str.title()
+                fig_pie = px.pie(erros_filtrados, values='Qtd', names='Label', hole=0.4, title="Proporção dos Erros Selecionados")
+                st.plotly_chart(fig_pie, use_container_width=True)
+            else:
+                st.info("Nenhum erro desse tipo registrado.")
 
-# TAB 3: Nuvem de Assuntos Errados (NOVA LÓGICA)
+        with col_heat:
+            # Heatmap cruzando Matéria x Tipos Selecionados
+            heatmap_data = df.groupby('materia')[sel_tipos_erro].sum()
+            # Renomear colunas para ficar bonito
+            heatmap_data.columns = [c.replace('erro_', '').replace('_', ' ').title() for c in heatmap_data.columns]
+            
+            fig_heat = px.imshow(heatmap_data, text_auto=True, color_continuous_scale='Reds', aspect="auto", title="Mapa de Calor: Onde os erros acontecem")
+            st.plotly_chart(fig_heat, use_container_width=True)
+
+# TAB 3: Assuntos Específicos (Nuvem de Erros)
 with tab3:
-    st.subheader("Quais assuntos específicos mais derrubam a nota?")
-    st.caption("Contagem baseada na coluna 'Erro: Assuntos' (separados por vírgula).")
-
+    st.subheader("Análise Detalhada dos Assuntos de Erro")
+    
     if 'assuntos_erro' in df.columns:
-        # Lógica para explodir a lista de assuntos
-        # 1. Filtra linhas que têm algo escrito
-        df_erros = df[df['assuntos_erro'].str.len() > 2].copy()
+        # Prepara lista de assuntos
+        df_exploded = df[df['assuntos_erro'].str.len() > 1].copy()
         
-        if not df_erros.empty:
-            # 2. Separa por vírgula e cria uma lista
-            # O stack() transforma as colunas em linhas
-            todos_assuntos = df_erros['assuntos_erro'].str.split(',').explode().str.strip()
+        if not df_exploded.empty:
+            # Explode a lista separada por vírgula
+            # 1. Split da string -> Lista
+            # 2. Explode lista -> Linhas
+            # 3. Strip -> Remove espaços em branco das pontas
+            todos_erros = df_exploded['assuntos_erro'].str.split(',').explode().str.strip()
             
-            # 3. Conta frequência
-            contagem = todos_assuntos.value_counts().reset_index()
+            # Conta frequência e remove vazios
+            contagem = todos_erros.value_counts().reset_index()
             contagem.columns = ['Assunto Específico', 'Ocorrências']
-            
-            # 4. Remove vazios caso existam
             contagem = contagem[contagem['Assunto Específico'] != '']
             
-            # Visualização
-            col_chart, col_table = st.columns([2, 1])
+            c1, c2 = st.columns([2, 1])
+            with c1:
+                fig_tree = px.treemap(contagem.head(30), path=['Assunto Específico'], values='Ocorrências', color='Ocorrências', color_continuous_scale='Reds', title="Treemap: Assuntos com Mais Erros")
+                st.plotly_chart(fig_tree, use_container_width=True)
             
-            with col_chart:
-                fig_treemap = px.treemap(
-                    contagem.head(20), # Top 20 
-                    path=['Assunto Específico'], 
-                    values='Ocorrências',
-                    title="Top Assuntos Recorrentes nos Erros",
-                    color='Ocorrências',
-                    color_continuous_scale='Reds'
-                )
-                st.plotly_chart(fig_treemap, use_container_width=True)
-            
-            with col_table:
-                st.dataframe(
-                    contagem.style.background_gradient(cmap='Reds'),
-                    use_container_width=True,
-                    height=400
-                )
+            with c2:
+                st.write("Top 10 Assuntos Recorrentes")
+                st.dataframe(contagem.head(10).style.background_gradient(cmap='Reds'), use_container_width=True)
         else:
-            st.info("Nenhum assunto de erro detalhado encontrado nos registros.")
-    else:
-        st.error("Coluna 'Erro: Assuntos' não encontrada.")
+            st.info("Nenhum assunto de erro detalhado encontrado.")
 
 # Footer
-with st.expander("Ver Base de Dados Completa"):
-    st.dataframe(df, use_container_width=True)
+with st.expander("Ver Dados Brutos"):
+    st.dataframe(df.sort_values('data', ascending=False), use_container_width=True)
