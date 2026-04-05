@@ -66,26 +66,43 @@ if df.empty:
     st.stop()
 
 # --- Cálculos de Métricas ---
+if 'peso' not in df.columns:
+    df['peso'] = 1.0
+df['peso'] = df['peso'].fillna(1.0)
+
 total_questoes = df['questoes'].sum()
 total_acertos = df['acertos'].sum()
 total_nao_estudei = df['erro_nao_estudei'].sum()
 
-# Taxa Bruta (considera tudo)
+# Valores Ponderados
+df['pontos_max'] = df['questoes'] * df['peso']
+df['pontos_acertos'] = df['acertos'] * df['peso']
+df['pontos_nao_estudei'] = df['erro_nao_estudei'] * df['peso']
+
+total_pontos_max = df['pontos_max'].sum()
+total_pontos_acertos = df['pontos_acertos'].sum()
+total_pontos_nao_estudei = df['pontos_nao_estudei'].sum()
+
+# Taxa Bruta (considera tudo, não ponderada)
 taxa_bruta = (total_acertos / total_questoes * 100) if total_questoes > 0 else 0
 
-# Taxa Líquida / Real (desconsidera questões que não estudou)
+# Taxa Líquida / Real (não ponderada)
 questoes_validas = total_questoes - total_nao_estudei
 taxa_real = (total_acertos / questoes_validas * 100) if questoes_validas > 0 else 0
+
+# Taxa de Pontos (ponderada)
+taxa_pontos = (total_pontos_acertos / total_pontos_max * 100) if total_pontos_max > 0 else 0
 
 # --- Dashboard: KPIs ---
 st.title("📊 Monitoramento de Desempenho")
 
-k1, k2, k3, k4, k5 = st.columns(5)
+k1, k2, k3, k4, k5, k6 = st.columns(6)
 k1.metric("Questões Totais", int(total_questoes))
 k2.metric("Acertos", int(total_acertos))
 k3.metric("Taxa Bruta", f"{taxa_bruta:.1f}%", help="Acertos / Todas as Questões")
-k4.metric("Taxa Real (Líquida)", f"{taxa_real:.1f}%", delta=f"{taxa_real-taxa_bruta:.1f}%", help="Acertos / (Todas - Não Estudei). Mostra seu desempenho no que você JÁ estudou.")
-k5.metric("Questões 'Não Estudei'", int(total_nao_estudei))
+k4.metric("Taxa Real (Líquida)", f"{taxa_real:.1f}%", delta=f"{taxa_real-taxa_bruta:.1f}%", help="Acertos / (Todas - Não Estudei)")
+k5.metric("Não Estudei", int(total_nao_estudei))
+k6.metric("Taxa de Pontos", f"{taxa_pontos:.1f}%", help="Desempenho com base nos pesos das matérias (Pontos Obtidos / Pontos Totais)")
 
 st.divider()
 
@@ -98,16 +115,18 @@ with tab1:
     with c1:
         st.subheader("Evolução Temporal")
         # Agrupamento diário
-        df_tempo = df.groupby('data')[['questoes', 'acertos', 'erro_nao_estudei']].sum().reset_index()
+        df_tempo = df.groupby('data')[['questoes', 'acertos', 'erro_nao_estudei', 'pontos_max', 'pontos_acertos']].sum().reset_index()
         
-        # Calculando as duas taxas na linha do tempo
-        df_tempo['Bruta'] = (df_tempo['acertos'] / df_tempo['questoes'] * 100)
+        # Calculando as taxas na linha do tempo
+        df_tempo['Bruta'] = (df_tempo['acertos'] / df_tempo['questoes'] * 100).fillna(0)
         df_tempo['Real'] = df_tempo.apply(lambda x: (x['acertos'] / (x['questoes'] - x['erro_nao_estudei']) * 100) if (x['questoes'] - x['erro_nao_estudei']) > 0 else 0, axis=1)
+        df_tempo['Pontos'] = (df_tempo['pontos_acertos'] / df_tempo['pontos_max'] * 100).fillna(0)
 
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=df_tempo['data'], y=df_tempo['Bruta'], name='Taxa Bruta', line=dict(dash='dot', color='gray')))
         fig.add_trace(go.Scatter(x=df_tempo['data'], y=df_tempo['Real'], name='Taxa Real (Sabe)', line=dict(color='blue', width=3)))
-        fig.update_layout(title="Comparativo: Taxa Bruta vs Real", yaxis_range=[0, 110], hovermode="x unified")
+        fig.add_trace(go.Scatter(x=df_tempo['data'], y=df_tempo['Pontos'], name='Taxa de Pontos', line=dict(color='orange', width=2)))
+        fig.update_layout(title="Comparativo: Taxa Bruta vs Real vs Pontos", yaxis_range=[0, 110], hovermode="x unified")
         st.plotly_chart(fig, use_container_width=True)
 
     with c2:

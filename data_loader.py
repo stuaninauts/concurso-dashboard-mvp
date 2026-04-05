@@ -62,7 +62,8 @@ def _clean_data(df):
         'erro: interpretacao': 'erro_interpretacao',
         'erro: desatenção': 'erro_desatencao',
         'erro: desatencao': 'erro_desatencao',
-        'tempo': 'tempo_min'
+        'tempo': 'tempo_min',
+        'peso': 'peso'
     }
     
     df = df.rename(columns=rename_map)
@@ -79,11 +80,14 @@ def _clean_data(df):
 
     # Numéricos
     cols_num = ['questoes', 'acertos', 'erro_nao_estudei', 'erro_nao_sabia', 
-                'erro_interpretacao', 'erro_desatencao', 'tempo_min']
+                'erro_interpretacao', 'erro_desatencao', 'tempo_min', 'peso']
     
     for col in cols_num:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            if col == 'peso':
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(1.0)
+            else:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
     # Taxa
     if 'acertos' in df.columns and 'questoes' in df.columns:
