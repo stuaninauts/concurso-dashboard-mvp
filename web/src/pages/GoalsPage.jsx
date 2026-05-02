@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
@@ -7,9 +7,10 @@ import { Ico } from '../components/Icons';
 import AuroraUtils from '../lib/auroraUtils';
 
 export default function GoalsPage({ sessions, data, gamified }) {
-  const k = AuroraUtils.computeKPIs(sessions);
-  const forecast = AuroraUtils.forecastApproval(sessions);
-  const streakN = AuroraUtils.streak(sessions);
+  const k = useMemo(() => AuroraUtils.computeKPIs(sessions), [sessions]);
+  const forecast = useMemo(() => AuroraUtils.forecastApproval(sessions), [sessions]);
+  const streakN = useMemo(() => AuroraUtils.streak(sessions), [sessions]);
+  const consistency = useMemo(() => AuroraUtils.consistencyScore(sessions), [sessions]);
 
   const [goals] = useState([
     { id: 1, label: "Resolver 500 questões/semana", target: 500, current: Math.min(500, k.totalQ), unit: "q" },
@@ -23,7 +24,7 @@ export default function GoalsPage({ sessions, data, gamified }) {
     { id: "a2", emoji: "💯", label: "Centena", earned: k.totalQ >= 100, desc: "Resolva 100 questões" },
     { id: "a3", emoji: "🎯", label: "Atirador", earned: k.taxaReal >= 85, desc: "Taxa real ≥ 85%" },
     { id: "a4", emoji: "👑", label: "Acima do corte", earned: forecast.mean >= 60, desc: "Projeção ≥ corte" },
-    { id: "a5", emoji: "💎", label: "Consistente", earned: AuroraUtils.consistencyScore(sessions) >= 70, desc: "Score ≥ 70" },
+    { id: "a5", emoji: "💎", label: "Consistente", earned: consistency >= 70, desc: "Score ≥ 70" },
     { id: "a6", emoji: "🚀", label: "Mestre TRT", earned: forecast.p >= 80, desc: "80%+ chance de aprovação" },
   ];
 

@@ -21,6 +21,7 @@ export default function Sidebar({ page, setPage, filters, setFilters, data, gami
 
   const setRange = (days) => {
     if (days === null) return setFilters((f) => ({ ...f, dateFrom: null, dateTo: null }));
+    if (!data.sessions.length) return;
     const latestDate = data.sessions.reduce((max, s) => s.date > max ? s.date : max, "2000-01-01");
     const d = new Date(latestDate);
     d.setDate(d.getDate() - days);
@@ -81,7 +82,14 @@ export default function Sidebar({ page, setPage, filters, setFilters, data, gami
           <div className="date-range">
             <Ico name="calendar" size={14} className="ico" />
             <span>
-              {filters.dateFrom?.replace(/-/g, "/") || "01/03"} – {filters.dateTo?.replace(/-/g, "/") || "19/04"}
+              {(() => {
+                const sessions = data.sessions;
+                const minDate = sessions.reduce((m, s) => s.date < m ? s.date : m, "9999-12-31");
+                const maxDate = sessions.reduce((m, s) => s.date > m ? s.date : m, "2000-01-01");
+                const from = (filters.dateFrom || minDate).slice(5).replace("-", "/");
+                const to = (filters.dateTo || maxDate).slice(5).replace("-", "/");
+                return `${from} – ${to}`;
+              })()}
             </span>
           </div>
           <div className="date-pills">

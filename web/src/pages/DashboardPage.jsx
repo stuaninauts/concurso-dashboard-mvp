@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useData } from '../data/DataContext';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
@@ -9,6 +10,7 @@ import { KpiCard, ForecastGauge, SubjectRow, HonestBanner } from '../components/
 import AuroraUtils from '../lib/auroraUtils';
 
 export default function DashboardPage({ sessions, data, kpiLayout, chartType, gamified }) {
+  const { refresh, source, status } = useData();
   const k = useMemo(() => AuroraUtils.computeKPIs(sessions), [sessions]);
   const series = useMemo(() => AuroraUtils.timeSeries(sessions), [sessions]);
   const ranking = useMemo(() => AuroraUtils.subjectRanking(sessions), [sessions]);
@@ -44,7 +46,11 @@ export default function DashboardPage({ sessions, data, kpiLayout, chartType, ga
         </div>
         <div className="page-actions">
           {gamified && <span className="streak-flame"><Ico name="flame" size={11} stroke={2.5} />{streakN} dias seguidos</span>}
-          <button className="btn btn-ghost"><Ico name="refresh" size={13} />Atualizar</button>
+          {source === 'sheets' && (
+            <button className="btn btn-ghost" onClick={refresh} disabled={status === 'loading'}>
+              <Ico name="refresh" size={13} />{status === 'loading' ? 'Atualizando…' : 'Atualizar'}
+            </button>
+          )}
           <button className="btn btn-primary"><Ico name="plus" size={13} />Nova sessão</button>
         </div>
       </div>

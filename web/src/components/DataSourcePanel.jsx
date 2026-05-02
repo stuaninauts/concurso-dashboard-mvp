@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Ico } from './Icons';
 import { useData } from '../data/DataContext';
 
@@ -6,6 +6,11 @@ export default function DataSourcePanel() {
   const { status, error, source, sheetUrl, loadUrl, loadCsv, refresh, resetToMock } = useData();
   const [inputUrl, setInputUrl] = useState(sheetUrl || '');
   const fileRef = useRef(null);
+
+  // Keep the text field in sync when sheetUrl changes externally (e.g. auto-load on mount).
+  useEffect(() => {
+    setInputUrl(sheetUrl || '');
+  }, [sheetUrl]);
 
   const handleLoad = () => {
     if (inputUrl.trim()) loadUrl(inputUrl.trim());

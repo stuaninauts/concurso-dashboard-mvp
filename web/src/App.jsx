@@ -17,17 +17,23 @@ const TWEAK_DEFAULTS = {
   gamified: true,
 };
 
+const EMPTY_FILTERS = { bancas: [], materias: [], errors: [], dateFrom: null, dateTo: null };
+
 function AppInner() {
-  const { data } = useData();
+  const { data, source } = useData();
   const [page, setPage] = useState("dashboard");
-  const [filters, setFilters] = useState({
-    bancas: [], materias: [], errors: [], dateFrom: null, dateTo: null,
-  });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", tweaks.theme);
   }, [tweaks.theme]);
+
+  // Reset filters whenever a new data source is loaded so stale selections
+  // (e.g. "TRT 1" chips from mock data) don't hide the newly imported data.
+  useEffect(() => {
+    setFilters(EMPTY_FILTERS);
+  }, [source]);
 
   const filtered = AuroraUtils.filterSessions(data.sessions, filters);
 
