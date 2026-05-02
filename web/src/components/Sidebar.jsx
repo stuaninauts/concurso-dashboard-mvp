@@ -1,5 +1,6 @@
 import { Ico } from './Icons';
 import AuroraUtils from '../lib/auroraUtils';
+import DataSourcePanel from './DataSourcePanel';
 
 export default function Sidebar({ page, setPage, filters, setFilters, data, gamified }) {
   const allBancas = data.bancas;
@@ -68,7 +69,10 @@ export default function Sidebar({ page, setPage, filters, setFilters, data, gami
       </nav>
 
       <div className="filters">
-        <div className="nav-section-label">Filtros</div>
+        <div className="nav-section-label">Dados</div>
+        <DataSourcePanel />
+
+        <div className="nav-section-label" style={{ marginTop: 8 }}>Filtros</div>
 
         <div className="filter-group">
           <div className="filter-label">

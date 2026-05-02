@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import './styles.css';
-import { MOCK_DATA } from './data/mockData';
+import { DataProvider, useData } from './data/DataContext';
 import AuroraUtils from './lib/auroraUtils';
 import Sidebar from './components/Sidebar';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakToggle } from './components/TweaksPanel';
@@ -17,7 +17,8 @@ const TWEAK_DEFAULTS = {
   gamified: true,
 };
 
-export default function App() {
+function AppInner() {
+  const { data } = useData();
   const [page, setPage] = useState("dashboard");
   const [filters, setFilters] = useState({
     bancas: [], materias: [], errors: [], dateFrom: null, dateTo: null,
@@ -28,7 +29,6 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", tweaks.theme);
   }, [tweaks.theme]);
 
-  const data = MOCK_DATA;
   const filtered = AuroraUtils.filterSessions(data.sessions, filters);
 
   const renderPage = () => {
@@ -71,5 +71,13 @@ export default function App() {
         <TweakToggle label="Gamificado" value={tweaks.gamified} onChange={(v) => setTweak("gamified", v)} />
       </TweaksPanel>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <DataProvider>
+      <AppInner />
+    </DataProvider>
   );
 }
